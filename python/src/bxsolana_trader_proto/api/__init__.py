@@ -57,6 +57,12 @@ class SubmitStrategy(betterproto.Enum):
     P_WAIT_FOR_CONFIRMATION = 3
 
 
+class SubmitProtection(betterproto.Enum):
+    SP_LOW = 0
+    SP_MEDIUM = 1
+    SP_HIGH = 2
+
+
 class Step(betterproto.Enum):
     STEP0 = 0
     STEP1 = 1
@@ -483,6 +489,12 @@ class PostSubmitRequest(betterproto.Message):
     sniping: Optional[bool] = betterproto.bool_field(
         10, optional=True, group="_sniping"
     )
+    timestamp: Optional[datetime] = betterproto.message_field(
+        11, optional=True, group="_timestamp"
+    )
+    submit_protection: Optional["SubmitProtection"] = betterproto.enum_field(
+        12, optional=True, group="_submitProtection"
+    )
 
 
 @dataclass(eq=False, repr=False)
@@ -490,6 +502,9 @@ class PostSubmitPaladinRequest(betterproto.Message):
     transaction: "TransactionMessageV2" = betterproto.message_field(1)
     revert_protection: Optional[bool] = betterproto.bool_field(
         2, optional=True, group="_revertProtection"
+    )
+    timestamp: Optional[datetime] = betterproto.message_field(
+        3, optional=True, group="_timestamp"
     )
 
 
@@ -508,6 +523,12 @@ class PostSubmitBatchRequest(betterproto.Message):
     )
     front_running_protection: Optional[bool] = betterproto.bool_field(
         4, optional=True, group="_frontRunningProtection"
+    )
+    timestamp: Optional[datetime] = betterproto.message_field(
+        5, optional=True, group="_timestamp"
+    )
+    submit_protection: Optional["SubmitProtection"] = betterproto.enum_field(
+        6, optional=True, group="_submitProtection"
     )
 
 
@@ -528,6 +549,9 @@ class PostSubmitSnipeRequest(betterproto.Message):
     entries: List["PostSubmitRequestEntry"] = betterproto.message_field(1)
     use_staked_rp_cs: Optional[bool] = betterproto.bool_field(
         2, optional=True, group="_useStakedRPCs"
+    )
+    timestamp: Optional[datetime] = betterproto.message_field(
+        3, optional=True, group="_timestamp"
     )
 
 
@@ -1197,16 +1221,16 @@ class TransactionMeta(betterproto.Message):
     fee: int = betterproto.uint64_field(3)
     pre_balances: List[int] = betterproto.uint64_field(4)
     post_balances: List[int] = betterproto.uint64_field(5)
-    inner_instructions: List[
-        "TransactionMetaInnerInstruction"
-    ] = betterproto.message_field(6)
+    inner_instructions: List["TransactionMetaInnerInstruction"] = (
+        betterproto.message_field(6)
+    )
     log_messages: List[str] = betterproto.string_field(7)
     pre_token_balances: List["TransactionMetaTokenBalance"] = betterproto.message_field(
         8
     )
-    post_token_balances: List[
-        "TransactionMetaTokenBalance"
-    ] = betterproto.message_field(9)
+    post_token_balances: List["TransactionMetaTokenBalance"] = (
+        betterproto.message_field(9)
+    )
 
 
 @dataclass(eq=False, repr=False)
@@ -1772,6 +1796,7 @@ class GetPumpFunSwapsStreamResponse(betterproto.Message):
     virtual_sol_reserves: int = betterproto.uint64_field(11)
     virtual_token_reserves: int = betterproto.uint64_field(12)
     timestamp: datetime = betterproto.message_field(13)
+    creator: str = betterproto.string_field(14)
 
 
 @dataclass(eq=False, repr=False)
@@ -1790,6 +1815,7 @@ class GetPumpFunNewTokensStreamResponse(betterproto.Message):
     bonding_curve: str = betterproto.string_field(7)
     creator: str = betterproto.string_field(8)
     timestamp: datetime = betterproto.message_field(9)
+    creator_vault: str = betterproto.string_field(10)
 
 
 @dataclass(eq=False, repr=False)
@@ -1806,6 +1832,26 @@ class GetPumpFunNewAmmPoolStreamResponse(betterproto.Message):
     quote_mint: str = betterproto.string_field(5)
     lp_mint: str = betterproto.string_field(6)
     timestamp: datetime = betterproto.message_field(9)
+    coin_creator: str = betterproto.string_field(10)
+
+
+@dataclass(eq=False, repr=False)
+class GetPumpFunAmmSwapStreamRequest(betterproto.Message):
+    pools: List[str] = betterproto.string_field(1)
+
+
+@dataclass(eq=False, repr=False)
+class GetPumpFunAmmSwapStreamResponse(betterproto.Message):
+    pool: str = betterproto.string_field(1)
+    user: str = betterproto.string_field(2)
+    is_buy: bool = betterproto.bool_field(3)
+    quote_mint: str = betterproto.string_field(4)
+    base_mint: str = betterproto.string_field(5)
+    in_amount: float = betterproto.double_field(6)
+    out_amount: float = betterproto.double_field(7)
+    tx_hash: str = betterproto.string_field(8)
+    timestamp: datetime = betterproto.message_field(9)
+    slot: int = betterproto.uint64_field(10)
 
 
 @dataclass(eq=False, repr=False)
@@ -1820,6 +1866,7 @@ class PostPumpFunSwapRequest(betterproto.Message):
     compute_limit: int = betterproto.uint32_field(8)
     compute_price: int = betterproto.uint64_field(9)
     tip: Optional[int] = betterproto.uint64_field(10, optional=True, group="_tip")
+    creator: str = betterproto.string_field(11)
 
 
 @dataclass(eq=False, repr=False)
@@ -1832,32 +1879,57 @@ class PostPumpFunSwapRequestSol(betterproto.Message):
     compute_limit: int = betterproto.uint32_field(6)
     compute_price: int = betterproto.uint64_field(7)
     tip: Optional[int] = betterproto.uint64_field(8, optional=True, group="_tip")
+    creator: str = betterproto.string_field(9)
+
+
+@dataclass(eq=False, repr=False)
+class GetPumpFunAmmQuotesRequest(betterproto.Message):
+    in_token: str = betterproto.string_field(1)
+    in_amount: float = betterproto.double_field(2)
+    out_token: str = betterproto.string_field(3)
+    pool: str = betterproto.string_field(4)
+    slippage: float = betterproto.double_field(5)
+
+
+@dataclass(eq=False, repr=False)
+class GetPumpFunAmmQuotesResponse(betterproto.Message):
+    quote_type: str = betterproto.string_field(1)
+    in_token: str = betterproto.string_field(2)
+    in_amount: float = betterproto.double_field(3)
+    out_token: str = betterproto.string_field(4)
+    out_amount: float = betterproto.double_field(5)
+
+
+@dataclass(eq=False, repr=False)
+class PostPumpFunAmmSwapRequest(betterproto.Message):
+    owner_address: str = betterproto.string_field(1)
+    in_token: str = betterproto.string_field(2)
+    out_token: str = betterproto.string_field(3)
+    pool: str = betterproto.string_field(4)
+    in_amount: float = betterproto.double_field(5)
+    slippage: float = betterproto.double_field(6)
+    compute_limit: int = betterproto.uint32_field(7)
+    compute_price: int = betterproto.uint64_field(8)
+    tip: Optional[int] = betterproto.uint64_field(9, optional=True, group="_tip")
+
+
+@dataclass(eq=False, repr=False)
+class PostPumpFunAmmSwapResponse(betterproto.Message):
+    transactions: List["TransactionMessage"] = betterproto.message_field(1)
+    buy_quote_amount_in: float = betterproto.double_field(2)
+    buy_user_quote_amount_in: float = betterproto.double_field(3)
+    buy_max_quote_amount_in: float = betterproto.double_field(4)
+    buy_base_amount_out: float = betterproto.double_field(5)
+    sell_base_amount_in: float = betterproto.double_field(6)
+    sell_min_quote_amount_out: float = betterproto.double_field(7)
+    sell_quote_amount_out: float = betterproto.double_field(8)
+    sell_user_quote_amount_out: float = betterproto.double_field(9)
+    fees: List["_common__.Fee"] = betterproto.message_field(10)
 
 
 @dataclass(eq=False, repr=False)
 class PostPumpFunSwapResponse(betterproto.Message):
     transaction: "TransactionMessageV2" = betterproto.message_field(1)
-
-
-@dataclass(eq=False, repr=False)
-class GetLeaderScheduleRequest(betterproto.Message):
-    max_slots: int = betterproto.uint64_field(1)
-
-
-@dataclass(eq=False, repr=False)
-class GetLeaderScheduleResponse(betterproto.Message):
-    current_slot: int = betterproto.uint64_field(1)
-    leader_schedule: List["LeaderSchedule"] = betterproto.message_field(2)
-
-
-@dataclass(eq=False, repr=False)
-class LeaderSchedule(betterproto.Message):
-    slot: int = betterproto.uint64_field(1)
-    leader: str = betterproto.string_field(2)
-    is_jito: bool = betterproto.bool_field(3)
-    is_high_risk: bool = betterproto.bool_field(4)
-    jito_region: str = betterproto.string_field(5)
-    is_malicious: bool = betterproto.bool_field(6)
 
 
 class ApiStub(betterproto.ServiceStub):
@@ -3377,6 +3449,24 @@ class ApiStub(betterproto.ServiceStub):
         ):
             yield response
 
+    async def get_pump_fun_amm_swap_stream(
+        self,
+        get_pump_fun_amm_swap_stream_request: "GetPumpFunAmmSwapStreamRequest",
+        *,
+        timeout: Optional[float] = None,
+        deadline: Optional["Deadline"] = None,
+        metadata: Optional["MetadataLike"] = None
+    ) -> AsyncIterator["GetPumpFunAmmSwapStreamResponse"]:
+        async for response in self._unary_stream(
+            "/api.Api/GetPumpFunAMMSwapStream",
+            get_pump_fun_amm_swap_stream_request,
+            GetPumpFunAmmSwapStreamResponse,
+            timeout=timeout,
+            deadline=deadline,
+            metadata=metadata,
+        ):
+            yield response
+
     async def post_pump_fun_swap(
         self,
         post_pump_fun_swap_request: "PostPumpFunSwapRequest",
@@ -3411,18 +3501,35 @@ class ApiStub(betterproto.ServiceStub):
             metadata=metadata,
         )
 
-    async def get_leader_schedule(
+    async def get_pump_fun_amm_quotes(
         self,
-        get_leader_schedule_request: "GetLeaderScheduleRequest",
+        get_pump_fun_amm_quotes_request: "GetPumpFunAmmQuotesRequest",
         *,
         timeout: Optional[float] = None,
         deadline: Optional["Deadline"] = None,
         metadata: Optional["MetadataLike"] = None
-    ) -> "GetLeaderScheduleResponse":
+    ) -> "GetPumpFunAmmQuotesResponse":
         return await self._unary_unary(
-            "/api.Api/GetLeaderSchedule",
-            get_leader_schedule_request,
-            GetLeaderScheduleResponse,
+            "/api.Api/GetPumpFunAmmQuotes",
+            get_pump_fun_amm_quotes_request,
+            GetPumpFunAmmQuotesResponse,
+            timeout=timeout,
+            deadline=deadline,
+            metadata=metadata,
+        )
+
+    async def post_pump_fun_amm_swap(
+        self,
+        post_pump_fun_amm_swap_request: "PostPumpFunAmmSwapRequest",
+        *,
+        timeout: Optional[float] = None,
+        deadline: Optional["Deadline"] = None,
+        metadata: Optional["MetadataLike"] = None
+    ) -> "PostPumpFunAmmSwapResponse":
+        return await self._unary_unary(
+            "/api.Api/PostPumpFunAmmSwap",
+            post_pump_fun_amm_swap_request,
+            PostPumpFunAmmSwapResponse,
             timeout=timeout,
             deadline=deadline,
             metadata=metadata,
@@ -3430,6 +3537,7 @@ class ApiStub(betterproto.ServiceStub):
 
 
 class ApiBase(ServiceBase):
+
     async def get_rate_limit(
         self, get_rate_limit_request: "GetRateLimitRequest"
     ) -> "GetRateLimitResponse":
@@ -3895,6 +4003,12 @@ class ApiBase(ServiceBase):
         raise grpclib.GRPCError(grpclib.const.Status.UNIMPLEMENTED)
         yield GetPumpFunNewAmmPoolStreamResponse()
 
+    async def get_pump_fun_amm_swap_stream(
+        self, get_pump_fun_amm_swap_stream_request: "GetPumpFunAmmSwapStreamRequest"
+    ) -> AsyncIterator["GetPumpFunAmmSwapStreamResponse"]:
+        raise grpclib.GRPCError(grpclib.const.Status.UNIMPLEMENTED)
+        yield GetPumpFunAmmSwapStreamResponse()
+
     async def post_pump_fun_swap(
         self, post_pump_fun_swap_request: "PostPumpFunSwapRequest"
     ) -> "PostPumpFunSwapResponse":
@@ -3905,9 +4019,14 @@ class ApiBase(ServiceBase):
     ) -> "PostPumpFunSwapResponse":
         raise grpclib.GRPCError(grpclib.const.Status.UNIMPLEMENTED)
 
-    async def get_leader_schedule(
-        self, get_leader_schedule_request: "GetLeaderScheduleRequest"
-    ) -> "GetLeaderScheduleResponse":
+    async def get_pump_fun_amm_quotes(
+        self, get_pump_fun_amm_quotes_request: "GetPumpFunAmmQuotesRequest"
+    ) -> "GetPumpFunAmmQuotesResponse":
+        raise grpclib.GRPCError(grpclib.const.Status.UNIMPLEMENTED)
+
+    async def post_pump_fun_amm_swap(
+        self, post_pump_fun_amm_swap_request: "PostPumpFunAmmSwapRequest"
+    ) -> "PostPumpFunAmmSwapResponse":
         raise grpclib.GRPCError(grpclib.const.Status.UNIMPLEMENTED)
 
     async def __rpc_get_rate_limit(
@@ -4649,6 +4768,17 @@ class ApiBase(ServiceBase):
             request,
         )
 
+    async def __rpc_get_pump_fun_amm_swap_stream(
+        self,
+        stream: "grpclib.server.Stream[GetPumpFunAmmSwapStreamRequest, GetPumpFunAmmSwapStreamResponse]",
+    ) -> None:
+        request = await stream.recv_message()
+        await self._call_rpc_handler_server_stream(
+            self.get_pump_fun_amm_swap_stream,
+            stream,
+            request,
+        )
+
     async def __rpc_post_pump_fun_swap(
         self,
         stream: "grpclib.server.Stream[PostPumpFunSwapRequest, PostPumpFunSwapResponse]",
@@ -4665,12 +4795,20 @@ class ApiBase(ServiceBase):
         response = await self.post_pump_fun_swap_sol(request)
         await stream.send_message(response)
 
-    async def __rpc_get_leader_schedule(
+    async def __rpc_get_pump_fun_amm_quotes(
         self,
-        stream: "grpclib.server.Stream[GetLeaderScheduleRequest, GetLeaderScheduleResponse]",
+        stream: "grpclib.server.Stream[GetPumpFunAmmQuotesRequest, GetPumpFunAmmQuotesResponse]",
     ) -> None:
         request = await stream.recv_message()
-        response = await self.get_leader_schedule(request)
+        response = await self.get_pump_fun_amm_quotes(request)
+        await stream.send_message(response)
+
+    async def __rpc_post_pump_fun_amm_swap(
+        self,
+        stream: "grpclib.server.Stream[PostPumpFunAmmSwapRequest, PostPumpFunAmmSwapResponse]",
+    ) -> None:
+        request = await stream.recv_message()
+        response = await self.post_pump_fun_amm_swap(request)
         await stream.send_message(response)
 
     def __mapping__(self) -> Dict[str, grpclib.const.Handler]:
@@ -5203,6 +5341,12 @@ class ApiBase(ServiceBase):
                 GetPumpFunNewAmmPoolStreamRequest,
                 GetPumpFunNewAmmPoolStreamResponse,
             ),
+            "/api.Api/GetPumpFunAMMSwapStream": grpclib.const.Handler(
+                self.__rpc_get_pump_fun_amm_swap_stream,
+                grpclib.const.Cardinality.UNARY_STREAM,
+                GetPumpFunAmmSwapStreamRequest,
+                GetPumpFunAmmSwapStreamResponse,
+            ),
             "/api.Api/PostPumpFunSwap": grpclib.const.Handler(
                 self.__rpc_post_pump_fun_swap,
                 grpclib.const.Cardinality.UNARY_UNARY,
@@ -5215,10 +5359,16 @@ class ApiBase(ServiceBase):
                 PostPumpFunSwapRequestSol,
                 PostPumpFunSwapResponse,
             ),
-            "/api.Api/GetLeaderSchedule": grpclib.const.Handler(
-                self.__rpc_get_leader_schedule,
+            "/api.Api/GetPumpFunAmmQuotes": grpclib.const.Handler(
+                self.__rpc_get_pump_fun_amm_quotes,
                 grpclib.const.Cardinality.UNARY_UNARY,
-                GetLeaderScheduleRequest,
-                GetLeaderScheduleResponse,
+                GetPumpFunAmmQuotesRequest,
+                GetPumpFunAmmQuotesResponse,
+            ),
+            "/api.Api/PostPumpFunAmmSwap": grpclib.const.Handler(
+                self.__rpc_post_pump_fun_amm_swap,
+                grpclib.const.Cardinality.UNARY_UNARY,
+                PostPumpFunAmmSwapRequest,
+                PostPumpFunAmmSwapResponse,
             ),
         }
